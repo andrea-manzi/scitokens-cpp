@@ -1162,7 +1162,8 @@ class Validator {
         auto claims = jwt.get_payload_json();
         for (const auto &claim_pair : claims) {
             if (claim_pair.first == "iat" || claim_pair.first == "nbf" ||
-                claim_pair.first == "exp" || claim_pair.first == "ver") {
+                claim_pair.first == "exp" || claim_pair.first == "ver" ||
+                claim_pair.first == "acr" ) {
                 continue;
             }
             auto iter = m_validators.find(claim_pair.first);
