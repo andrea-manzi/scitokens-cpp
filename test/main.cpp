@@ -796,11 +796,10 @@ TEST_F(SerializeTest, EGICheckInCompatibilityTest) {
         .set_payload_claim("acr",  jwt::claim(std::string("test")))
         .set_payload_claim("scope", jwt::claim(std::string("openid profile email read:/data")));
 
-    // Add entitlements in eduperson_entitlement claim (JSON array of strings)
-    picojson::array entitlements_arr;
-    entitlements_arr.push_back(picojson::value("urn:mace:egi.eu:group:fedcloud.egi.eu:role=member#aai.egi.eu"));
-    entitlements_arr.push_back(picojson::value("urn:mace:egi.eu:group:fedcloud.egi.eu:role=vm_operator#aai.egi.eu"));
-    token_builder.set_payload_claim("eduperson_entitlement", jwt::claim(picojson::value(entitlements_arr)));
+    // Add entitlements in eduperson_assurance claim (JSON array of strings)
+    picojson::array assurance_arr;
+    assurance_arr.push_back(picojson::value("https://refeds.org/assurance"));
+    token_builder.set_payload_claim("eduperson_assurance", jwt::claim(picojson::value(assurance_arr)));
 
     // Sign the token using ES256 and the mock keys
     std::string token_str = token_builder.sign(jwt::algorithm::es256(ec_public, ec_private));
@@ -820,14 +819,13 @@ TEST_F(SerializeTest, EGICheckInCompatibilityTest) {
     free(iss_val);
 
     // Verify entitlements
-    char** entitlements_list = nullptr;
-    rv = scitoken_get_claim_string_list(read_token, "eduperson_entitlement", &entitlements_list, &err_msg);
+    char** assurance_list = nullptr;
+    rv = scitoken_get_claim_string_list(read_token, "eduperson_assurance", &assurance_list, &err_msg);
     ASSERT_TRUE(rv == 0) << (err_msg ? err_msg : "");
-    ASSERT_TRUE(entitlements_list != nullptr);
-    EXPECT_STREQ(entitlements_list[0], "urn:mace:egi.eu:group:fedcloud.egi.eu:role=member#aai.egi.eu");
-    EXPECT_STREQ(entitlements_list[1], "urn:mace:egi.eu:group:fedcloud.egi.eu:role=vm_operator#aai.egi.eu");
-    EXPECT_TRUE(entitlements_list[2] == nullptr);
-    scitoken_free_string_list(entitlements_list);
+    ASSERT_TRUE(assurance_list != nullptr);
+    EXPECT_STREQ(assurance_list[0], "https://refeds.org/assurance");
+    EXPECT_TRUE(assurance_list[1] == nullptr);
+    scitoken_free_string_list(assurance_list);
 
     // 5. Test scope authorization via Enforcer in COMPAT mode
     auto enforcer = enforcer_create(egi_issuer.c_str(), &m_audiences_array[0], &err_msg);
