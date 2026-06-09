@@ -13,6 +13,7 @@
 #include <sys/stat.h>
 #include <thread>
 #include <unistd.h>
+#include <jwt-cpp/jwt.h>
 
 using scitokens_test::SecureTempDir;
 
@@ -771,6 +772,79 @@ TEST_F(SerializeTest, ExplicitTime) {
     free(err_msg);
 
     enforcer_destroy(enforcer);
+}
+
+TEST_F(SerializeTest, EGICheckInCompatibilityTest) {
+    char *err_msg = nullptr;
+
+    // 1. Mock EGI Check-in issuer
+    const std::string egi_issuer = "https://aai.egi.eu/auth/realms/egi";
+
+    // Store the public key in key cache for the mock EGI issuer
+    auto rv = scitoken_store_public_ec_key(egi_issuer.c_str(), "1", ec_public, &err_msg);
+    ASSERT_TRUE(rv == 0) << (err_msg ? err_msg : "");
+
+    // 2. Build EGI Check-in token payload manually WITHOUT 'nbf' claim
+    auto time_now = std::chrono::system_clock::now();
+    auto token_builder = jwt::create()
+        .set_key_id("1")
+        .set_issuer(egi_issuer)
+        .set_audience("https://demo.scitokens.org/")
+        .set_id("unique-jti-egi-check-in-test")
+        .set_issued_at(time_now)
+        .set_expires_at(time_now + std::chrono::seconds(3600))
+        .set_payload_claim("acr",  jwt::claim(std::string("test")))
+        .set_payload_claim("scope", jwt::claim(std::string("openid profile email read:/data")));
+
+    // Add entitlements in eduperson_entitlement claim (JSON array of strings)
+    picojson::array entitlements_arr;
+    entitlements_arr.push_back(picojson::value("urn:mace:egi.eu:group:fedcloud.egi.eu:role=member#aai.egi.eu"));
+    entitlements_arr.push_back(picojson::value("urn:mace:egi.eu:group:fedcloud.egi.eu:role=vm_operator#aai.egi.eu"));
+    token_builder.set_payload_claim("eduperson_entitlement", jwt::claim(picojson::value(entitlements_arr)));
+
+    // Sign the token using ES256 and the mock keys
+    std::string token_str = token_builder.sign(jwt::algorithm::es256(ec_public, ec_private));
+
+    // 3. Deserialize and validate using default COMPAT profile
+    SciToken read_token = nullptr;
+    const char* allowed_issuers[] = { egi_issuer.c_str(), nullptr };
+    rv = scitoken_deserialize(token_str.c_str(), &read_token, allowed_issuers, &err_msg);
+    ASSERT_TRUE(rv == 0) << (err_msg ? err_msg : "");
+    std::unique_ptr<void, decltype(&scitoken_destroy)> read_token_ptr(read_token, scitoken_destroy);
+
+    // 4. Verify that the claims are correctly decoded and accessible
+    char* iss_val = nullptr;
+    rv = scitoken_get_claim_string(read_token, "iss", &iss_val, &err_msg);
+    ASSERT_TRUE(rv == 0) << (err_msg ? err_msg : "");
+    EXPECT_STREQ(iss_val, egi_issuer.c_str());
+    free(iss_val);
+
+    // Verify entitlements
+    char** entitlements_list = nullptr;
+    rv = scitoken_get_claim_string_list(read_token, "eduperson_entitlement", &entitlements_list, &err_msg);
+    ASSERT_TRUE(rv == 0) << (err_msg ? err_msg : "");
+    ASSERT_TRUE(entitlements_list != nullptr);
+    EXPECT_STREQ(entitlements_list[0], "urn:mace:egi.eu:group:fedcloud.egi.eu:role=member#aai.egi.eu");
+    EXPECT_STREQ(entitlements_list[1], "urn:mace:egi.eu:group:fedcloud.egi.eu:role=vm_operator#aai.egi.eu");
+    EXPECT_TRUE(entitlements_list[2] == nullptr);
+    scitoken_free_string_list(entitlements_list);
+
+    // 5. Test scope authorization via Enforcer in COMPAT mode
+    auto enforcer = enforcer_create(egi_issuer.c_str(), &m_audiences_array[0], &err_msg);
+    ASSERT_TRUE(enforcer != nullptr) << (err_msg ? err_msg : "");
+    std::unique_ptr<void, decltype(&enforcer_destroy)> enforcer_ptr(enforcer, enforcer_destroy);
+
+    enforcer_set_validate_profile(enforcer, SciTokenProfile::COMPAT);
+
+    Acl acl;
+    acl.authz = "read";
+    acl.resource = "/data/file.txt";
+
+    rv = enforcer_test(enforcer, read_token, &acl, &err_msg);
+    EXPECT_EQ(rv, 0) << (err_msg ? err_msg : "");
+    if (err_msg) {
+        free(err_msg);
+    }
 }
 
 TEST_F(SerializeTest, GetExpirationErrorHandling) {

@@ -4,6 +4,7 @@ if( NOT SCITOKENS_EXTERNAL_GTEST )
     add_dependencies(scitokens-gtest gtest)
     include_directories("${PROJECT_SOURCE_DIR}/vendor/gtest/googletest/include")
 endif()
+target_include_directories(scitokens-gtest PRIVATE ${OPENSSL_INCLUDE_DIRS} ${LIBCRYPTO_INCLUDE_DIRS})
 
 if(SCITOKENS_EXTERNAL_GTEST)
     set(LIBGTEST "gtest")
