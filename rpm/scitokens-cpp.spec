@@ -1,5 +1,5 @@
 Name: scitokens-cpp
-Version: 1.4.1
+Version: 1.4.2
 Release: 1%{?dist}
 Summary: C++ Implementation of the SciTokens Library
 License: ASL 2.0
@@ -66,6 +66,9 @@ Requires: %{name}%{?_isa} = %{version}
 %dir %{_includedir}/scitokens
 
 %changelog
+* Wed Jun 10 2026 Andrea Manzi <andrea.manzi@egi.eu> - 1.4.2-1
+- add EGI Check-in tokens compatibility and test 
+
 * Fri Mar 13 2026 Derek Weitzel <dweitzel@unl.edu> - 1.4.1-1
 - Fix scope path boundary validation to deny sibling-prefix authorization bypasses
 - Reject parent-directory traversal in scope paths, including encoded traversal forms
