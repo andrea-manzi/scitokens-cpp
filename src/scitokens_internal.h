@@ -1163,8 +1163,10 @@ class Validator {
         for (const auto &claim_pair : claims) {
             if (claim_pair.first == "iat" || claim_pair.first == "nbf" ||
                 claim_pair.first == "exp" || claim_pair.first == "ver" ||
-                claim_pair.first == "acr" || claim_pair.first == "eduperson_assurance" ||
-                claim_pair.first == "voperson_id" ){
+                claim_pair.first == "acr" || claim_pair.first == "azp" ||
+		claim_pair.first == "auth_time" || claim_pair.first == "eduperson_assurance" || 
+                claim_pair.first == "sid" || claim_pair.first == "voperson_id" ||
+                claim_pair.first == "typ") {
                 continue;
             }
             auto iter = m_validators.find(claim_pair.first);
